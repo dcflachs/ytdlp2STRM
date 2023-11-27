@@ -12,19 +12,34 @@ from clases.nfo import nfo as n
 class Youtube:
     def __init__(self, channel=False, channel_url=False):
         if channel:
+            
             self.channel = channel
             self.channel_url = channel_url
+            self.channel_id = ""
             if  'keyword-' in channel:
+                print("Searching {}...".format(channel))
                 self.videos = self.get_search()
             else:
+                print("Working channel URL: {}".format(channel_url))
+                print('Getting channel ID...')
                 self.channel_id = self.get_id()
+                print('Generating name folder...')
                 self.channel_name_folder = self.get_name_folder()
+                print('Getting name...')
                 self.channel_name = self.get_name()
+                print('Getting description...')
                 self.channel_description = self.get_description()
+                print('Getting thumbnails...')
                 self.thumbs = self.get_thumbs()
                 self.channel_poster = self.thumbs['poster']
                 self.channel_landscape = self.thumbs['landscape']
-                self.videos = self.get_videos()
+
+                if 'novideo' in channel_url:
+                    print('novideo flag, only channel info...')
+                    self.videos = []
+                else:
+                    print('Getting videos...')
+                    self.videos = self.get_videos()
 
     def get_id(self):
         command = [
@@ -39,6 +54,8 @@ class Youtube:
             '--print', 'channel_url', 
             self.channel_url
         ]
+
+        print(' '.join(command))
 
         self.set_proxy(command)
 
@@ -59,11 +76,10 @@ class Youtube:
         
         if not self.channel_id:
             youtube_channel_url = "https://www.youtube.com/{}".format(
-                self.channel
+                self.channel.lstrip('/')
             )
-            self.get_id(
-                youtube_channel_url
-            )
+            self.channel_url = youtube_channel_url
+            self.get_id()
         
         return self.channel_id
 
@@ -71,7 +87,7 @@ class Youtube:
         #get channel or playlist name
         if 'list-' in self.channel_name_folder:
             command = ['yt-dlp', 
-                    'https://www.youtube.com/{}'.format(self.channel), 
+                    'https://www.youtube.com/playlist?list={}'.format(self.channel.split('list-')[1]), 
                     '--compat-options', 'no-youtube-unavailable-videos',
                     '--print', '"%(playlist_title)s"', 
                     '--playlist-items', '1',
@@ -92,7 +108,7 @@ class Youtube:
                         '--compat-options', 'no-youtube-channel-redirect']
         self.set_proxy(command)
 
-        #print("Command {}".format(' '.join(command)))
+        print("Command {}".format(' '.join(command)))
         #self.channel_name = subprocess.getoutput(' '.join(command))
         self.channel_name = w.worker(command).output()
         return sanitize(
@@ -322,8 +338,6 @@ class Youtube:
                         '--no-warning',
                         '--print', '"%(id)s;%(channel_id)s;%(uploader_id)s;%(title)s"']
                     
-        self.set_proxy(command)
-        #print(' '.join(command))
 
         if config['days_dateafter'] == "0":
             command.pop(8)
@@ -335,6 +349,7 @@ class Youtube:
             ).output()
             .split('\n')
         )
+
         return self.videos
     
     def set_proxy(self, command):
@@ -501,6 +516,8 @@ def keyword_strm(keyword, method):
                 method, 
                 video_id
             )
+
+
             file_path = "{}/{}/{}.{}".format(
                 media_folder, 
                 sanitize(
@@ -529,7 +546,7 @@ def keyword_strm(keyword, method):
 
             channel = Youtube(
                 youtube_channel_folder, 
-                "https://www.youtube.com/channel/{}".format(
+                "https://www.youtube.com/channel/{}?novideo".format(
                     channel_id
                 )
             )
@@ -555,7 +572,7 @@ def keyword_strm(keyword, method):
             ).make_nfo()
 
             if not os.path.isfile(file_path):
-                f.folders.write_file(
+                f.folders().write_file(
                     file_path, 
                     file_content
                 )
@@ -571,6 +588,7 @@ def to_strm(method):
             youtube_channel.replace('https://www.youtube.com/', '') if not '/user/' in youtube_channel 
             else youtube_channel.replace('https://www.youtube.com', '')
         )
+        print(youtube_channel)
         
         #formating youtube URL and init channel_id
         youtube_channel_url = "https://www.youtube.com/{}/videos".format(

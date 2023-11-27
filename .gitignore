@@ -2,7 +2,10 @@
 __pycache__/
 *.py[cod]
 *$py.class
+*.tmp
+*.csv
 log.txt
 channel_list.json
 config.json
 crons.json
+downloaded_files/

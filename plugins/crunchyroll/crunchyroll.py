@@ -5,6 +5,7 @@ from clases.config import config as c
 from clases.worker import worker as w
 from clases.folders import folders as f
 from clases.nfo import nfo as n
+import requests
 
 ## -- CRUNCHYROLL CLASS
 class Crunchyroll:
@@ -41,7 +42,6 @@ class Crunchyroll:
         self.set_auth(command)
         self.set_proxy(command)
         self.set_start_episode(command)
-
         #print(' '.join(command))
         return w.worker(command).pipe() 
 
@@ -61,7 +61,9 @@ class Crunchyroll:
 
     def set_start_episode(self, command):
         if not self.new_content:
-            next_episode = int(self.last_episode) + 1
+            next_episode = int(self.last_episode)
+            if next_episode < 1:
+                next_episode = 1
             command.append('--playlist-start')
             command.append('{}'.format(next_episode))
 
@@ -119,6 +121,7 @@ class Crunchyroll:
             if proxy_url != "":
                 command.append('--proxy')
                 command.append(proxy_url)
+
 ## -- END
 
 ## -- LOAD CONFIG AND CHANNELS FILES
@@ -154,6 +157,7 @@ def to_strm(method):
         print("Preparing channel {}".format(crunchyroll_channel))
 
         crunchyroll = Crunchyroll(crunchyroll_channel)
+        #crunchyroll.get_cookie_from_firefox()
 
         # -- MAKES CHANNEL DIR (AND SUBDIRS) IF NOT EXIST, REMOVE ALL STRM IF KEEP_OLDER_STRM IS SETTED TO FALSE IN GENERAL CONFIG
         f.folders().make_clean_folder(
