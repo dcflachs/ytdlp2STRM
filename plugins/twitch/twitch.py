@@ -217,8 +217,9 @@ else:
 
 ## -- MANDATORY TO_STRM FUNCTION 
 def to_strm(method, *args):
-    do_live = True if 'no_live' in args else False
-    do_videos = True if 'no_videos' in args else False
+    no_live = 'no_live' in args
+    no_videos = 'no_videos' in args
+
     for twitch_channel in channels:
         print("Preparing channel {}".format(twitch_channel))
         twitch_channel = twitch_channel.replace('https://www.twitch.tv/', '')
@@ -261,7 +262,7 @@ def to_strm(method, *args):
         ## -- END 
 
         ## -- GET ON AIR STREAMING
-        if do_live:
+        if not no_live:
             for line in twitch.direct:
                 if line != "":
                     if not 'ERROR' in line:
@@ -337,7 +338,7 @@ def to_strm(method, *args):
             ## -- END
 
         ## -- GET VIDEOS TAB
-        if do_videos:
+        if not no_videos:
             for line in twitch.videos:
                 if line != "":
                     if not 'ERROR' in line:
