@@ -8,8 +8,10 @@ from clases.config import config as c
 from clases.worker import worker as w
 from clases.folders import folders as f
 from clases.nfo import nfo as n
-from threading import Thread
-
+from threading import Thread, Timer, Event
+from random import randint
+from subprocess import TimeoutExpired
+import signal
 
 ## -- TWITCH CLASS
 class Twitch:
@@ -460,64 +462,141 @@ def direct(twitch_id):
         code=301
     )
 
+class Lockfile(object):
+    def __init__(self, file_name, port):
+        self.file_name = file_name
+        self.port = port
+     
+    def __enter__(self):
+        self.file = open(self.file_name, 'x')
+        self.file.write("{}\n".format(self.port))
+        self.file.close()
+ 
+    def __exit__(self, *args):
+        os.remove(self.file_name)
+
 def bridge(twitch_id):
     channel = twitch_id.split("@")[0]
     video_id = twitch_id.split("@")[1]
+    lock_name = "/tmp/{}_lock".format(channel)
 
     turl = 'twitch.tv/{}'.format(
         channel
     )
 
+    port = 43000 + randint(1, 100)
+    stream_started = Event()
+
     def generate():
-        startTime = time.time()
-        buffer = []
-        sentBurst = False
-        command = [
-            'streamlink',
-            turl, 
-            'best',
-            '--player-external-http',
-            '--player-external-http-port', '43199',
-            '--player-external-http-interface', "127.0.0.1",
-            '--player-external-http-continuous', 'false',
-            '--twitch-disable-ads'
-        ]
+        with Lockfile(lock_name, port):
+            startTime = time.time()
+            buffer = []
+            sentBurst = False
+            event = Event()
+            command = [
+                'streamlink',
+                turl,
+                'best',
+                '--player-external-http',
+                '--player-external-http-port', '{}'.format(port),
+                '--player-external-http-interface', "127.0.0.1",
+                '--player-external-http-continuous', 'true',
+                '--twitch-disable-ads'
+            ]
 
-        print(' '.join(command))
-        process = w.worker(command).pipe()
-        try:
-            while True:
-                # # Get some data from ffmpeg
-                # line = process.stdout.read(1024)
+            def timeout():
+                event.set()
 
-                # # We buffer everything before outputting it
-                # buffer.append(line)
+            print(' '.join(command))
+            process = w.worker(command).pipe2()
+            try:
+                t = Timer(10.0, timeout)
+                stream_started.set()
+                with open("/tmp/{}_log".format(channel), 'w') as log:
+                    while not event.is_set():
+                        try:
+                            outs, errs = process.communicate(timeout=1)
+                            if outs:
+                                log.write(outs)
+                        except TimeoutExpired:
+                            pass
 
-                # # Minimum buffer time, 3 seconds
-                # if sentBurst is False and time.time() > startTime + 3 and len(buffer) > 0:
-                #     sentBurst = True
+                        process.poll()
+                        if isinstance(process.returncode, int):
+                            if process.returncode > 0:
+                                print('streamlink Error', process.returncode)
+                            break
+                    
+                process.send_signal(signal.SIGINT)
+                time.sleep(1)
+            finally:
+                process.kill()
 
-                #     for i in range(0, len(buffer) - 2):
-                #         print("Send initial burst #", i)
-                #         yield buffer.pop(0)
-
-                # elif time.time() > startTime + 3 and len(buffer) > 0:
-                #     yield buffer.pop(0)
-
-                process.poll()
-                if isinstance(process.returncode, int):
-                    if process.returncode > 0:
-                        print('streamlink Error', process.returncode)
-                    break
-        finally:
-            process.kill()
-
-    Thread(target=generate, args=[]).run()
+    if not os.path.isfile(lock_name):
+        Thread(target=generate, args=[]).run()
+        stream_started.wait(1)
+    else:
+        with open(lock_name, 'r') as f:
+            str = f.readline()
+            port = int(str)
 
     return redirect(
-        "http://127.0.0.1:43199/", 
+        "http://127.0.0.1:{}/".format(port), 
         code=301
     )
+
+# def bridge(twitch_id):
+#     channel = twitch_id.split("@")[0]
+#     video_id = twitch_id.split("@")[1]
+
+#     turl = 'twitch.tv/{}'.format(
+#         channel
+#     )
+#     def generate():
+#         startTime = time.time()
+#         buffer = []
+#         sentBurst = False
+#         command = [
+#             'streamlink',
+#             turl, 
+#             'best',
+#             '--twitch-disable-ads',
+#             '--stdout',
+#             '--progress', 'no'
+#         ]
+
+#         process = w.worker(command).pipe()
+#         try:
+#             while True:
+#                 # Get some data from ffmpeg
+#                 line = process.stdout.read(1024)
+
+#                 # We buffer everything before outputting it
+#                 buffer.append(line)
+
+#                 # Minimum buffer time, 3 seconds
+#                 if sentBurst is False and time.time() > startTime + 3 and len(buffer) > 0:
+#                     sentBurst = True
+
+#                     for i in range(0, len(buffer) - 2):
+#                         print("Send initial burst #", i)
+#                         yield buffer.pop(0)
+
+#                 elif time.time() > startTime + 3 and len(buffer) > 0:
+#                     yield buffer.pop(0)
+
+#                 process.poll()
+#                 if isinstance(process.returncode, int):
+#                     if process.returncode > 0:
+#                         print('streamlink Error', process.returncode)
+#                     break
+#         finally:
+#             process.kill()
+
+#     return Response(
+#         stream_with_context(generate()), 
+#         mimetype = "video/mp4"
+#     ) 
 
 
 ## -- END
