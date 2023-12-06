@@ -501,31 +501,34 @@ def bridge(twitch_id):
                 '--player-external-http-port', '{}'.format(port),
                 '--player-external-http-interface', "127.0.0.1",
                 '--player-external-http-continuous', 'true',
-                '--twitch-disable-ads'
+                '--twitch-disable-ads',
+                '-l', 'info'
             ]
 
             def timeout():
                 event.set()
 
             print(' '.join(command))
-            process = w.worker(command).pipe2()
+            process = w.worker(command).pipe()
             try:
                 t = Timer(10.0, timeout)
                 stream_started.set()
-                with open("/tmp/{}_log".format(channel), 'w') as log:
-                    while not event.is_set():
-                        try:
-                            outs, errs = process.communicate(timeout=1)
-                            if outs:
-                                log.write(outs)
-                        except TimeoutExpired:
-                            pass
+                while not event.is_set():
+                    try:
+                        line = process.stdout.readline()
+                        if line:
+                            if "Got HTTP request" in license:
+                                t.cancel()
+                            elif "HTTP connection closed" in line:
+                                t.start()
+                    except TimeoutExpired:
+                        pass
 
-                        process.poll()
-                        if isinstance(process.returncode, int):
-                            if process.returncode > 0:
-                                print('streamlink Error', process.returncode)
-                            break
+                    process.poll()
+                    if isinstance(process.returncode, int):
+                        if process.returncode > 0:
+                            print('streamlink Error', process.returncode)
+                        break
                     
                 process.send_signal(signal.SIGINT)
                 time.sleep(1)
@@ -544,59 +547,5 @@ def bridge(twitch_id):
         "http://127.0.0.1:{}/".format(port), 
         code=301
     )
-
-# def bridge(twitch_id):
-#     channel = twitch_id.split("@")[0]
-#     video_id = twitch_id.split("@")[1]
-
-#     turl = 'twitch.tv/{}'.format(
-#         channel
-#     )
-#     def generate():
-#         startTime = time.time()
-#         buffer = []
-#         sentBurst = False
-#         command = [
-#             'streamlink',
-#             turl, 
-#             'best',
-#             '--twitch-disable-ads',
-#             '--stdout',
-#             '--progress', 'no'
-#         ]
-
-#         process = w.worker(command).pipe()
-#         try:
-#             while True:
-#                 # Get some data from ffmpeg
-#                 line = process.stdout.read(1024)
-
-#                 # We buffer everything before outputting it
-#                 buffer.append(line)
-
-#                 # Minimum buffer time, 3 seconds
-#                 if sentBurst is False and time.time() > startTime + 3 and len(buffer) > 0:
-#                     sentBurst = True
-
-#                     for i in range(0, len(buffer) - 2):
-#                         print("Send initial burst #", i)
-#                         yield buffer.pop(0)
-
-#                 elif time.time() > startTime + 3 and len(buffer) > 0:
-#                     yield buffer.pop(0)
-
-#                 process.poll()
-#                 if isinstance(process.returncode, int):
-#                     if process.returncode > 0:
-#                         print('streamlink Error', process.returncode)
-#                     break
-#         finally:
-#             process.kill()
-
-#     return Response(
-#         stream_with_context(generate()), 
-#         mimetype = "video/mp4"
-#     ) 
-
 
 ## -- END

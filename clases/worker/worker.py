@@ -24,17 +24,6 @@ class worker:
             #bufsize=1,
             #shell=True
         )
-    
-    def pipe2(self):
-        return subprocess.Popen(
-            self.command,
-            stdout=subprocess.PIPE,
-            universal_newlines=True,
-            encoding='latin-1',
-            cwd=self.wd,
-            #bufsize=1,
-            #shell=True
-        )
 
     def call(self):
         return subprocess.call(
