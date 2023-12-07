@@ -508,6 +508,7 @@ def bridge(twitch_id):
             def timeout():
                 event.set()
 
+            os.environ["PYTHONUNBUFFERED"] = "1"
             print(' '.join(command))
             process = w.worker(command).pipe()
             try:
@@ -517,7 +518,7 @@ def bridge(twitch_id):
                     try:
                         line = process.stdout.readline()
                         if line:
-                            if "Got HTTP request" in license:
+                            if "Got HTTP request" in line:
                                 t.cancel()
                             elif "HTTP connection closed" in line:
                                 t.start()
