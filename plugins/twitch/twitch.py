@@ -487,13 +487,25 @@ def bridge(twitch_id):
     port = 43000 + randint(1, 100)
     stream_started = Event()
 
-    def generate():
+    def poll(process, event):
+        try:
+            while not event.is_set():
+                process.poll()
+                if isinstance(process.returncode, int):
+                    if process.returncode > 0:
+                        print('streamlink Error', process.returncode)
+                    break
+        finally:
+            process.kill()
+
+    def monitor():
         with Lockfile(lock_name, port):
             startTime = time.time()
             buffer = []
             sentBurst = False
-            event = Event()
+            stop_event = Event()
             command = [
+                'stdbuf', '-oL',
                 'streamlink',
                 turl,
                 'best',
@@ -506,15 +518,16 @@ def bridge(twitch_id):
             ]
 
             def timeout():
-                event.set()
+                stop_event.set()
 
             os.environ["PYTHONUNBUFFERED"] = "1"
             print(' '.join(command))
             process = w.worker(command).pipe()
+            Thread(target=poll, args=[process, stop_event]).run()
             try:
                 t = Timer(10.0, timeout)
                 stream_started.set()
-                while not event.is_set():
+                while not stop_event.is_set():
                     try:
                         line = process.stdout.readline()
                         if line:
@@ -524,12 +537,6 @@ def bridge(twitch_id):
                                 t.start()
                     except TimeoutExpired:
                         pass
-
-                    process.poll()
-                    if isinstance(process.returncode, int):
-                        if process.returncode > 0:
-                            print('streamlink Error', process.returncode)
-                        break
                     
                 process.send_signal(signal.SIGINT)
                 time.sleep(1)
@@ -537,7 +544,7 @@ def bridge(twitch_id):
                 process.kill()
 
     if not os.path.isfile(lock_name):
-        Thread(target=generate, args=[]).run()
+        Thread(target=monitor, args=[]).run()
         stream_started.wait(1)
     else:
         with open(lock_name, 'r') as f:
