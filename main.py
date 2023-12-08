@@ -17,8 +17,8 @@ ytdlp2strm_config = c.config(
 
 
 if __name__ == "__main__":
-    crons = cron.Cron()
-    crons.start()
+    # crons = cron.Cron()
+    # crons.start()
 
     thread = Thread(
         target=f.folders().clean_old_videos
