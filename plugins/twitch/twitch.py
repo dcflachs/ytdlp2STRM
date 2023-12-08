@@ -292,12 +292,13 @@ def to_strm(method, *args):
                                 )
                             )
                         
-                        file_path = "{}/{}/{}.{}".format(
+                        file_path = "{}/{}/{}/{}.{}".format(
                             media_folder,  
                             sanitize(
                                 "{}".format(
                                     twitch_channel)
                                 ), 
+                            sanitize('s00'),
                             sanitize(
                                 "!000-live-{}".format(
                                     twitch_channel
@@ -487,17 +488,6 @@ def bridge(twitch_id):
     port = 43000 + randint(1, 100)
     stream_started = Event()
 
-    def poll(process, event):
-        try:
-            while not event.is_set():
-                process.poll()
-                if isinstance(process.returncode, int):
-                    if process.returncode > 0:
-                        print('streamlink Error', process.returncode)
-                    break
-        finally:
-            process.kill()
-
     def monitor():
         with Lockfile(lock_name, port):
             startTime = time.time()
@@ -505,7 +495,6 @@ def bridge(twitch_id):
             sentBurst = False
             stop_event = Event()
             command = [
-                'stdbuf', '-oL',
                 'streamlink',
                 turl,
                 'best',
@@ -517,31 +506,26 @@ def bridge(twitch_id):
                 '-l', 'info'
             ]
 
-            def timeout():
-                stop_event.set()
-
-            os.environ["PYTHONUNBUFFERED"] = "1"
             print(' '.join(command))
             process = w.worker(command).pipe()
-            Thread(target=poll, args=[process, stop_event]).run()
             try:
-                t = Timer(10.0, timeout)
                 stream_started.set()
                 while not stop_event.is_set():
-                    try:
-                        line = process.stdout.readline()
-                        if line:
-                            if "Got HTTP request" in line:
-                                t.cancel()
-                            elif "HTTP connection closed" in line:
-                                t.start()
-                    except TimeoutExpired:
-                        pass
+                    process.poll()
+                    if isinstance(process.returncode, int):
+                        if process.returncode > 0:
+                            print('streamlink Error', process.returncode)
+                        break
                     
+                    time.sleep(1)
+
                 process.send_signal(signal.SIGINT)
                 time.sleep(1)
             finally:
-                process.kill()
+                try:
+                    process.kill()
+                except:
+                    pass
 
     if not os.path.isfile(lock_name):
         Thread(target=monitor, args=[]).run()
