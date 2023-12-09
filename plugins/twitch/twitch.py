@@ -229,13 +229,14 @@ def to_strm(method, *args):
 
         # -- MAKES CHANNEL DIR IF NOT EXIST,
         f.folders().make_clean_folder(
-            "{}/{}".format(
+            "{}/{}/{}".format(
                 media_folder,  
                 sanitize(
                     "{}".format(
                         twitch.channel
                     )
-                )
+                ),
+                's00'
             ),
             False,
             config
