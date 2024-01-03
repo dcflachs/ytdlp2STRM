@@ -1,5 +1,5 @@
 FROM python:3.9
 WORKDIR /opt/ytdlp2STRM
 COPY . /opt/ytdlp2STRM
-RUN pip install --no-cache-dir --upgrade -r /opt/ytdlp2STRM/ requirements.txt
+RUN pip install --no-cache-dir --upgrade -r /opt/ytdlp2STRM/requirements.txt
 CMD ["python", "main.py"]
