@@ -1,7 +1,7 @@
 import schedule
 import time
 from cli import main as main_cli
-from clases.config import config as c
+from classes.config import config as c
 import threading
 
 ## -- LOAD CONFIG AND CHANNELS FILES

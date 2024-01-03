@@ -6,10 +6,10 @@ from threading import Thread
 app = Flask(__name__, template_folder='ui/html', static_folder='ui/static', static_url_path='')
 #socketio = SocketIO(app)
 
-from clases.config import config as c
-from clases.folders import folders as f
+from classes.config import config as c
+from classes.folders import folders as f
 import config.routes
-from clases.cron import cron as cron
+from classes.cron import cron as cron
 
 ytdlp2strm_config = c.config(
     './config/config.json'

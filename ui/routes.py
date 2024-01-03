@@ -3,7 +3,7 @@ from flask import request, render_template
 from subprocess import Popen, PIPE, STDOUT
 #from flask_socketio import emit
 import json
-from clases.worker import worker as w
+from classes.worker import worker as w
 from ui.ui import Ui
 _ui = Ui()
 

@@ -4,10 +4,10 @@ import os
 import requests
 import time
 import sys
-from clases.config import config as c
-from clases.worker import worker as w
-from clases.folders import folders as f
-from clases.nfo import nfo as n
+from classes.config import config as c
+from classes.worker import worker as w
+from classes.folders import folders as f
+from classes.nfo import nfo as n
 
 
 ## -- TWITCH CLASS

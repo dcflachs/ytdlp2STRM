@@ -1,5 +1,5 @@
 import json
-from clases.config import config as c
+from classes.config import config as c
 
 class Ui:
     def __init__(self):

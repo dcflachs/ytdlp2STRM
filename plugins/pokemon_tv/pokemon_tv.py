@@ -2,9 +2,9 @@ from sanitize_filename import sanitize
 import os
 import json
 import requests
-from clases.config import config as c
-from clases.folders import folders as f
-from clases.nfo import nfo as n
+from classes.config import config as c
+from classes.folders import folders as f
+from classes.nfo import nfo as n
 
 
 ## -- LOAD CONFIG AND CHANNELS FILES
