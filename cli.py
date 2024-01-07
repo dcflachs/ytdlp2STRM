@@ -1,6 +1,6 @@
 from datetime import datetime
 import argparse
-import config.plugins as  plugins
+import config.plugins as plugins
 from sanitize_filename import sanitize
 
 def main(raw_args=None):

@@ -4,10 +4,13 @@ import os
 import requests
 import time
 import sys
+import signal
 from classes.config import config as c
 from classes.worker import worker as w
 from classes.folders import folders as f
 from classes.nfo import nfo as n
+from classes.timer import timer
+from subprocess import DEVNULL
 
 
 ## -- TWITCH CLASS
@@ -46,7 +49,7 @@ class Twitch:
 
     def get_direct(self):
         #Get current livestream
-        print("Processing live video in channel")
+        # print("Processing live video in channel")
 
         command = [
             'yt-dlp', 
@@ -214,198 +217,250 @@ else:
 ## -- END
 
 ## -- MANDATORY TO_STRM FUNCTION 
-def to_strm(method):
-    for twitch_channel in channels:
-        print("Preparing channel {}".format(twitch_channel))
-        twitch_channel = twitch_channel.replace('https://www.twitch.tv/', '')
-        twitch = Twitch(twitch_channel)
+def to_strm(method, *args):
+    do_live = not 'no_live' in args
+    do_videos = not 'no_videos' in args
+    kill_streams = 'kill_streams' in args
 
-        # -- MAKES CHANNEL DIR IF NOT EXIST,
-        f.folders().make_clean_folder(
-            "{}/{}/{}".format(
-                media_folder,  
-                sanitize(
-                    "{}".format(
-                        twitch.channel
-                    )
-                ),
-                'live'
-            ),
-            False,
-            config
-        )
-        ## -- END
-        # -- MAKES CHANNEL DIR IF NOT EXIST,
-        f.folders().make_clean_folder(
-            "{}/{}/{}".format(
-                media_folder,  
-                sanitize(
-                    "{}".format(
-                        twitch.channel
-                    )
-                ),
-                'videos'
-            ),
-            False,
-            config
-        )
-        ## -- END
+    with timer.timer() as run_timer:
+        for channel_idex, twitch_channel in enumerate(channels):
+            print("Preparing channel {}".format(twitch_channel))
+            twitch_channel = twitch_channel.replace('https://www.twitch.tv/', '')
+            twitch = Twitch(twitch_channel)
 
-        ## -- BUILD CHANNEL NFO FILE
-        n.nfo(
-            "tvshow",
-            "{}/{}".format(
-                media_folder, 
-                "{}".format(
-                    twitch.channel
-                )
-            ),
-            {
-                "title" : twitch.channel_name,
-                "plot" : "",
-                "season" : "1",
-                "episode" : "-1",
-                "landscape" : twitch.images['landscape'],
-                "poster" : twitch.images['poster'],
-                "studio" : "Twitch"
-            }
-        ).make_nfo()
-        ## -- END 
-
-        ## -- GET ON AIR STREAMING
-        for line in twitch.direct:
-            if line != "":
-                if not 'ERROR' in line:
-                    video_id = str(line).rstrip().split(';')[0]
-                    video_name = str(line).rstrip().split(';')[1].split(" ")
-                    try:
-                        video_name.pop(3)
-                    except:
-                        pass
-
-                    video_name = "{} [{}]".format(
-                        ' '.join(
-                            video_name
-                        ),
-                        video_id
-                    )
-
-                    file_content = "http://{}:{}/{}/{}/{}".format(
-                        ytdlp2strm_config['ytdlp2strm_host'], 
-                        ytdlp2strm_config['ytdlp2strm_port'], 
-                        source_platform, 
-                        method, "{}@{}".format(
-                            twitch_channel, 
-                            video_id
-                            )
-                        )
-                    
-                    file_path = "{}/{}/{}/{}.{}".format(
+            if do_live:
+                # -- MAKES CHANNEL DIR IF NOT EXIST,
+                f.folders().make_clean_folder(
+                    "{}/{}/{}".format(
                         media_folder,  
                         sanitize(
                             "{}".format(
-                                twitch_channel)
-                            ), 
-                        'live',
-                        sanitize(
-                            "!000-live-{}".format(
-                                twitch_channel
+                                twitch.channel
                             )
-                        ), 
-                        "strm"
+                        ),
+                        'live'
+                    ),
+                    False,
+                    config
+                )
+                ## -- END
+
+            if do_videos:
+                # -- MAKES CHANNEL DIR IF NOT EXIST,
+                f.folders().make_clean_folder(
+                    "{}/{}/{}".format(
+                        media_folder,  
+                        sanitize(
+                            "{}".format(
+                                twitch.channel
+                            )
+                        ),
+                        'videos'
+                    ),
+                    False,
+                    config
+                )
+                ## -- END
+
+            ## -- BUILD CHANNEL NFO FILE
+            n.nfo(
+                "tvshow",
+                "{}/{}".format(
+                    media_folder, 
+                    "{}".format(
+                        twitch.channel
                     )
+                ),
+                {
+                    "title" : twitch.channel_name,
+                    "plot" : "",
+                    "season" : "1",
+                    "episode" : "-1",
+                    "landscape" : twitch.images['landscape'],
+                    "poster" : twitch.images['poster'],
+                    "studio" : "Twitch"
+                }
+            ).make_nfo()
+            ## -- END 
 
-                    data = {
-                        "video_id" : video_id, 
-                        "video_name" : video_name
-                    }
+            if do_live:
+                ## -- GET ON AIR STREAMING
+                print("\t-->Processing live video in channel")
+                for line in twitch.direct:
+                    if line != "":
+                        port_number = int(ytdlp2strm_config['ytdlp2strm_port']) + channel_idex
+                        lock_name = "/tmp/{}".format(sanitize("{}_lock".format(twitch.channel_name)))
 
-                    if not os.path.isfile(file_path):
-                        f.folders().write_file(
-                            file_path, 
-                            file_content
-                        )
-                else:
-                    try:
-                        os.remove(
-                                "{}/{}/{}.{}".format(
+                        if not 'ERROR' in line and not kill_streams:
+                            video_id = str(line).rstrip().split(';')[0]
+                            video_name = str(line).rstrip().split(';')[1].split(" ")
+                            try:
+                                video_name.pop(3)
+                            except:
+                                pass
+
+                            if not os.path.isfile(lock_name):
+                                command = [
+                                    'streamlink',
+                                    twitch.twitch_channel_url.replace('https://', ''),
+                                    'best',
+                                    '--player-external-http',
+                                    '--player-external-http-port', '{}'.format(port_number),
+                                    '--player-external-http-interface', "0.0.0.0",
+                                    '--player-external-http-continuous', 'true',
+                                    '--twitch-disable-ads',
+                                    '-l', 'info'
+                                ]
+
+                                print("\t\t-->Found live stream")
+                                print(' '.join(command))
+                                sub = w.worker(command).launch(stdout=DEVNULL, stderr=DEVNULL)
+
+                                f.folders().write_file(
+                                    lock_name, 
+                                    '{}'.format(sub.pid)
+                                )
+
+                                video_name = "{} [{}]".format(
+                                    ' '.join(
+                                        video_name
+                                    ),
+                                    video_id
+                                )
+
+                                file_content = "http://{}:{}/{}/{}/{}".format(
+                                    ytdlp2strm_config['ytdlp2strm_host'], 
+                                    port_number, 
+                                    '',# source_platform, 
+                                    '',# method, 
+                                    ''
+                                    # "{}@{}".format(
+                                    #     twitch_channel, 
+                                    #     video_id
+                                    # )
+                                )
+                                
+                                file_path = "{}/{}/{}/{}.{}".format(
+                                    media_folder,  
+                                    sanitize(
+                                        "{}".format(
+                                            twitch_channel)
+                                        ), 
+                                    'live',
+                                    sanitize(
+                                        "!000-live-{}".format(
+                                            twitch_channel
+                                        )
+                                    ), 
+                                    "strm"
+                                )
+
+                                data = {
+                                    "video_id" : video_id, 
+                                    "video_name" : video_name
+                                }
+
+                                if not os.path.isfile(file_path):
+                                    f.folders().write_file(
+                                        file_path, 
+                                        file_content
+                                    )
+                        else:
+                            try:
+                                if os.path.isfile(lock_name):
+                                    print("\t\t-->Removing ended stream")
+                                    with open(lock_name, 'r') as file:
+                                        pid_str = file.readline()
+                                        pid = int(pid_str)
+                                        os.kill(pid, signal.SIGINT)
+                                        os.remove(lock_name)
+                            except Exception as e:
+                                print(e)
+                                pass
+
+                            try:
+                                os.remove(
+                                    "{}/{}/{}.{}".format(
+                                    media_folder,  
+                                    sanitize(
+                                        "{}".format(
+                                            twitch_channel
+                                        )
+                                    ),  
+                                    sanitize(
+                                        "!000-live-{}".format(
+                                            twitch_channel
+                                        )
+                                    ), 
+                                    "strm"
+                                    )
+                                )
+                            except Exception as e:
+                                # print(e)
+                                pass
+                ## -- END
+
+            if do_videos:
+                ## -- GET VIDEOS TAB
+                print(" -->Processing videos in channel")
+                for line in twitch.videos:
+                    if line != "":
+                        if not 'ERROR' in line:
+                            video_id = str(line).rstrip().split(';')[0]
+                            video_name = str(line).rstrip().split(';')[1].split(" ")
+                            upload_date = str(line).rstrip().split(';')[2]
+                            try:
+                                video_name.pop(3)
+                            except:
+                                pass
+
+                            video_name = "{} [{}]".format(
+                                ' '.join(
+                                    video_name
+                                ), 
+                                video_id
+                            )
+
+                            file_content = "http://{}:{}/{}/{}/{}".format(
+                                ytdlp2strm_config['ytdlp2strm_host'], 
+                                ytdlp2strm_config['ytdlp2strm_port'], 
+                                source_platform,
+                                method, 
+                                "{}@{}".format(
+                                    twitch_channel, 
+                                    video_id
+                                )
+                            )
+
+                            file_path = "{}/{}/{}/{}.{}".format(
                                 media_folder,  
                                 sanitize(
                                     "{}".format(
                                         twitch_channel
                                     )
-                                ),  
+                                ), 
+                                'videos',
                                 sanitize(
-                                    "!000-live-{}".format(
-                                        twitch_channel
+                                    "{}-{}".format(
+                                        upload_date,
+                                        video_name
                                     )
                                 ), 
                                 "strm"
                             )
-                        )
 
-                    except:
-                        pass
-        ## -- END
-
-        ## -- GET VIDEOS TAB
-        for line in twitch.videos:
-            if line != "":
-                if not 'ERROR' in line:
-                    video_id = str(line).rstrip().split(';')[0]
-                    video_name = str(line).rstrip().split(';')[1].split(" ")
-                    upload_date = str(line).rstrip().split(';')[2]
-                    try:
-                        video_name.pop(3)
-                    except:
-                        pass
-
-                    video_name = "{} [{}]".format(
-                        ' '.join(
-                            video_name
-                        ), 
-                        video_id
-                    )
-
-                    file_content = "http://{}:{}/{}/{}/{}".format(
-                        ytdlp2strm_config['ytdlp2strm_host'], 
-                        ytdlp2strm_config['ytdlp2strm_port'], 
-                        source_platform,
-                        method, 
-                        "{}@{}".format(
-                            twitch_channel, 
-                            video_id
-                        )
-                    )
-
-                    file_path = "{}/{}/{}/{}.{}".format(
-                        media_folder,  
-                        sanitize(
-                            "{}".format(
-                                twitch_channel
-                            )
-                        ), 
-                        'videos',
-                        sanitize(
-                            "{}-{}".format(
-                                upload_date,
-                                video_name
-                            )
-                        ), 
-                        "strm"
-                    )
-
-                    data = {
-                        "video_id" : video_id, 
-                        "video_name" : video_name
-                    }
-                    
-                    if not os.path.isfile(file_path):
-                        f.folders().write_file(
-                            file_path, 
-                            file_content
-                        )
-        ## --END
+                            data = {
+                                "video_id" : video_id, 
+                                "video_name" : video_name
+                            }
+                            
+                            if not os.path.isfile(file_path):
+                                f.folders().write_file(
+                                    file_path, 
+                                    file_content
+                                )
+                ## --END
+    print('Complete in %.03f sec.' % run_timer.interval)
     
     return True 
 ## -- END

@@ -1,5 +1,7 @@
-FROM python:3.9
+FROM python:3.9-slim
+COPY requirements.txt /
+RUN pip install --no-cache-dir --upgrade -r /requirements.txt
+RUN pip install --no-cache-dir streamlink
 WORKDIR /opt/ytdlp2STRM
 COPY . /opt/ytdlp2STRM
-RUN pip install --no-cache-dir --upgrade -r /opt/ytdlp2STRM/requirements.txt
 CMD ["python", "main.py"]

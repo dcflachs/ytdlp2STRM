@@ -30,6 +30,11 @@ class worker:
             self.command
         )
 
+    def launch(self, **kwargs):
+        return subprocess.Popen(
+            self.command, 
+            **kwargs
+        )
 
     def run(self):
         process = subprocess.Popen(self.command, stdout=subprocess.PIPE, shell=True)
