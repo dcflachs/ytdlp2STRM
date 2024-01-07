@@ -285,10 +285,10 @@ def to_strm(method, *args):
 
             if do_live:
                 ## -- GET ON AIR STREAMING
-                print("\t-->Processing live video in channel")
+                print(" -->Processing live video in channel")
                 for line in twitch.direct:
                     if line != "":
-                        port_number = int(ytdlp2strm_config['ytdlp2strm_port']) + channel_idex
+                        port_number = int(ytdlp2strm_config['ytdlp2strm_port']) + channel_idex + 1
                         lock_name = "/tmp/{}".format(sanitize("{}_lock".format(twitch.channel_name)))
 
                         if not 'ERROR' in line and not kill_streams:
@@ -312,7 +312,7 @@ def to_strm(method, *args):
                                     '-l', 'info'
                                 ]
 
-                                print("\t\t-->Found live stream")
+                                print("  -->Found live stream")
                                 print(' '.join(command))
                                 sub = w.worker(command).launch(stdout=DEVNULL, stderr=DEVNULL)
 
@@ -380,13 +380,14 @@ def to_strm(method, *args):
 
                             try:
                                 os.remove(
-                                    "{}/{}/{}.{}".format(
+                                    "{}/{}/{}/{}.{}".format(
                                     media_folder,  
                                     sanitize(
                                         "{}".format(
                                             twitch_channel
                                         )
-                                    ),  
+                                    ),
+                                    'live',
                                     sanitize(
                                         "!000-live-{}".format(
                                             twitch_channel
@@ -396,7 +397,7 @@ def to_strm(method, *args):
                                     )
                                 )
                             except Exception as e:
-                                # print(e)
+                                print(e)
                                 pass
                 ## -- END
 
